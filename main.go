@@ -1,8 +1,8 @@
 package main
+package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -11,71 +11,66 @@ import (
 	"time"
 )
 
-func main() {
+type DateResp struct {
+	Date  string `json:"date"`
+	Login string `json:"login"`
+}
 
-	http.HandleFunc("/api/rv/", reverseHandler)
+const login = "levchik"
 
-	http.HandleFunc("/", dateHandler)
+// хэндлер для даты
+func dateHandler(w http.ResponseWriter, r *http.Request) {
+	now := time.Now()
+	ddmmyy := now.Format("020106")
+	path := r.URL.Path[1:]
 
-	port := "5000"
-	if p := os.Getenv("PORT"); p != "" {
-		port = p
+	// Проверяем, совпадает ли путь с сегодняшней датой
+	if path == ddmmyy+"/" {
+		w.Header().Set("Content-Type", "application/json")
+		resp := DateResp{
+			Date:  now.Format("02-01-2006"), // DD-MM-YYYY
+			Login: login,
+		}
+		json.NewEncoder(w).Encode(resp)
+		return
 	}
 
-	log.Printf("Сервер запущен на порту %s", port)
-
-	err := http.ListenAndServe(":" + port, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+	http.NotFound(w, r)
 }
 
 func reverseHandler(w http.ResponseWriter, r *http.Request) {
-	prefix := "/api/rv/"
-	path := r.URL.Path
-
-	if !strings.HasPrefix(path, prefix) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 4 {
 		http.NotFound(w, r)
 		return
 	}
-	input := path[len(prefix):]
-	if input == "" {
-		http.NotFound(w, r)
+	word := parts[3]
+
+	match, _ := regexp.MatchString("^[a-z]+$", word)
+	if !match {
+		http.Error(w, "invalid input", http.StatusBadRequest)
 		return
 	}
 
-	matched, err := regexp.MatchString("^[a-z]+$", input)
-	if err != nil || !matched {
-		http.Error(w, "Invalid input", http.StatusBadRequest)
-		return
-	}
-
-	reversed := reverseString(input)
-	fmt.Fprint(w, reversed)
-}
-
-func reverseString(s string) string {
-	runes := []rune(s)
+	runes := []rune(word)
 	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
 		runes[i], runes[j] = runes[j], runes[i]
 	}
-	return string(runes)
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(string(runes)))
 }
 
-func dateHandler(w http.ResponseWriter, r *http.Request) {
-	now := time.Now()
-
-	expectedPath := "/" + now.Format("020106")
-	if r.URL.Path != expectedPath {
-		http.NotFound(w, r)
-		return
+func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
-	response := map[string]string{
-		"date":  now.Format("02-01-2006"),
-		"login": "levchik",
-	}
+	http.HandleFunc("/", dateHandler)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	http.HandleFunc("/api/rv/", reverseHandler)
+
+	log.Printf("Listening on :%s ...", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
