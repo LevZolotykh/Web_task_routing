@@ -19,15 +19,16 @@ const login = "levchik"
 
 // хэндлер для даты
 func dateHandler(w http.ResponseWriter, r *http.Request) {
-	now := time.Now()
-	ddmmyy := now.Format("020106")
-	path := r.URL.Path[1:]
+	loc, _ := time.LoadLocation("Europe/Moscow")
+	now := time.Now().In(loc)
 
-	// Проверяем, совпадает ли путь с сегодняшней датой
-	if path == ddmmyy+"/" {
+	ddmmyy := now.Format("020106") 
+	path := strings.Trim(r.URL.Path, "/")
+
+	if path == ddmmyy {
 		w.Header().Set("Content-Type", "application/json")
 		resp := DateResp{
-			Date:  now.Format("02-01-2006"), // DD-MM-YYYY
+			Date:  now.Format("02-01-2006"),
 			Login: login,
 		}
 		json.NewEncoder(w).Encode(resp)
